@@ -1,0 +1,19 @@
+version: '3.8'
+services:
+  zookeeper:
+    env_file:
+    - ./.env
+    image: bitnami/zookeeper
+    expose:
+    - "2181"
+    ports:
+    - "2181:2181"
+  
+  kafka:
+    image: bitnami/kafka
+    env_file:
+    - ./.env
+    depends_on:
+    - zookeeper
+    ports:
+    - '9092:9092'
