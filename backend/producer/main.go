@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/joho/godotenv"
+	trades "producer/trades"
 )
 
 func main() {
@@ -20,4 +21,7 @@ func main() {
 		topics[i] = strings.Trim(strings.Trim(topic, "\\"), "\"")
 	}
 
+	trades.SubScribeAndListen(
+		topics,
+	)
 }
