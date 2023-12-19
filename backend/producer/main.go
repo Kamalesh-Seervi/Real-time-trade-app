@@ -5,8 +5,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/Kamalesh-Seervi/Trade-App/trades"
 	"github.com/joho/godotenv"
-	trades "producer/trades"
 )
 
 func main() {

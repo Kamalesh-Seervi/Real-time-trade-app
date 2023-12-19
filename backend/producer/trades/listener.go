@@ -2,12 +2,20 @@ package trades
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/url"
+	"strconv"
+	"strings"
 
 	"github.com/gorilla/websocket"
+	"github.com/segmentio/kafka-go"
 )
+
+type RequestParams struct {
+	Id     int      `json:"id"`
+	Method string   `json:"method"`
+	Params []string `json:"params"`
+}
 
 var conn *websocket.Conn
 
@@ -20,6 +28,7 @@ func getConnection() (*websocket.Conn, error) {
 	if conn != nil {
 		return conn, nil
 	}
+
 	u := url.URL{Scheme: "wss", Host: "stream.binance.com:443", Path: "/ws"}
 	log.Printf("connecting to %s", u.String())
 	c, resp, err := websocket.DefaultDialer.Dial(u.String(), nil)
@@ -27,7 +36,26 @@ func getConnection() (*websocket.Conn, error) {
 		log.Printf("handshake failed with status %d", resp.StatusCode)
 		log.Fatal("dial:", err)
 	}
-	return c, nil
+	conn = c
+
+	return conn, nil
+}
+
+func CloseConnections() {
+	conn.Close()
+}
+
+func EstablishConnection() (*websocket.Conn, error) {
+	newConnection, err := getConnection()
+	if err != nil {
+		log.Fatal("Failed to get connection %s", err.Error())
+		return nil, err
+	}
+	return newConnection, nil
+}
+
+func AddOnConnectionClose(h func(code int, text string) error) {
+	conn.SetCloseHandler(h)
 }
 
 func unsubscirbeOnClose(conn *websocket.Conn, tradeTopics []string) error {
@@ -59,14 +87,13 @@ func SubScribeAndListen(topics []string) error {
 		return err
 	}
 
-	// binance send's ping every few minutes and requires to ping back in order
-	// to notify active connections
 	conn.SetPongHandler(func(appData string) error {
-		fmt.Println("Received pong:", appData)
+		log.Println("Received pong:", appData)
 		pingFrame := []byte{1, 2, 3, 4, 5}
 		err := conn.WriteMessage(websocket.PingMessage, pingFrame)
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
+			// no need to fail
 		}
 		return nil
 	})
@@ -76,13 +103,12 @@ func SubScribeAndListen(topics []string) error {
 		tradeTopics = append(tradeTopics, topic+"@"+"aggTrade")
 	}
 	log.Println("Listening to trades for ", tradeTopics)
-
 	message := RequestParams{
 		Id:     subscribeId,
 		Method: "SUBSCRIBE",
 		Params: tradeTopics,
 	}
-	//log.Println(message)
+	log.Println(message)
 	b, err := json.Marshal(message)
 	if err != nil {
 		log.Fatal("Failed to JSON Encode trade topics")
@@ -95,13 +121,13 @@ func SubScribeAndListen(topics []string) error {
 		return err
 	}
 
+	defer unsubscirbeOnClose(conn, tradeTopics)
 	defer conn.Close()
-	defer unsubscirbeOnClose(tradeTopics)
 
 	for {
 		_, payload, err := conn.ReadMessage()
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 			return err
 		}
 
@@ -109,9 +135,25 @@ func SubScribeAndListen(topics []string) error {
 
 		err = json.Unmarshal(payload, &trade)
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 			return err
 		}
+
 		log.Println(trade.Symbol, trade.Price, trade.Quantity)
+		go func() {
+			convertAndPublishToKafka(trade)
+		}()
 	}
+}
+
+func convertAndPublishToKafka(t Ticker) {
+	bytes, err := json.Marshal(t)
+	if err != nil {
+		log.Println("Error marshalling Ticker data", err.Error())
+	}
+
+	Publish(t.String(), kafka.Message{
+		Key:   []byte(t.Symbol + "-" + strconv.Itoa(int(t.Time))),
+		Value: bytes,
+	}, "trades-"+strings.ToLower(t.Symbol))
 }
