@@ -140,19 +140,20 @@ func SubScribeAndListen(topics []string) error {
 		}
 
 		log.Println(trade.Symbol, trade.Price, trade.Quantity)
-		go func() {
+		go func() { // <=== here
 			convertAndPublishToKafka(trade)
 		}()
 	}
 }
 
+// add this function
 func convertAndPublishToKafka(t Ticker) {
 	bytes, err := json.Marshal(t)
 	if err != nil {
 		log.Println("Error marshalling Ticker data", err.Error())
 	}
 
-	Publish(t.String(), kafka.Message{
+	Publish(t.Symbol, kafka.Message{
 		Key:   []byte(t.Symbol + "-" + strconv.Itoa(int(t.Time))),
 		Value: bytes,
 	}, "trades-"+strings.ToLower(t.Symbol))
