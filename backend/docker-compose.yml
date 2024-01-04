@@ -13,6 +13,7 @@ services:
     image: bitnami/kafka
     env_file:
     - ./.env
+    
     depends_on:
     - zookeeper
     ports:
