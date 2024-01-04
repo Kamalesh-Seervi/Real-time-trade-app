@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	core.Load("backend/.env")
+	core.Load()
 	router := gin.Default()
 
 	// CORS middleware

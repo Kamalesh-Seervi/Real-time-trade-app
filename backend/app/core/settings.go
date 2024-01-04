@@ -13,27 +13,17 @@ var TICKERS []string
 var KAFKA_HOST string
 var KAFKA_PORT string
 
-func Load(envFilePath string) {
-	if envFilePath != "" {
-		// Load environment variables from the specified file
-		err := godotenv.Load(envFilePath)
-		if err != nil {
-			log.Fatal("Failed to load environment file: ", err)
-		}
-	} else {
-		// Load environment variables from the default file (e.g., .env in the same directory)
-		err := godotenv.Load()
-		if err != nil {
-			log.Fatal("Failed to load environment file: ", err)
-		}
-	}
+func Load() {
 
-	// Rest of your existing code
+	err := godotenv.Load("../.env")
+	if err != nil {
+		log.Fatal("Failed to load environment file")
+	}
 	t := os.Getenv("TICKERS")
 	TICKERS := strings.Split(t, ",")
 	LoadTikers(TICKERS)
 
-	KAFKA_HOST = os.Getenv("KAFKA_HOST")
-	KAFKA_PORT = os.Getenv("KAFKA_PORT")
+	KAFKA_HOST = "127.0.0.1"
+	KAFKA_PORT = "9092"
 	fmt.Println(TICKERS)
 }
